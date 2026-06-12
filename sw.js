@@ -48,7 +48,7 @@ self.addEventListener("fetch", (event) => {
         );
       })
     );
-  } else if (url.hostname === "api.frankfurter.app") {
+  } else if (url.hostname === "api.frankfurter.dev") {
     // Exchange rate API — network first, cache fallback
     event.respondWith(
       fetch(event.request)
