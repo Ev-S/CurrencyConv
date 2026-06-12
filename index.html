@@ -417,7 +417,7 @@
     if (showSpinner) refreshBtn.classList.add("spinning");
     statusText.classList.remove("error");
     try {
-      const res = await fetch("https://api.frankfurter.app/latest?from=" + state.from + "&to=" + state.to);
+      const res = await fetch("https://api.frankfurter.dev/v1/latest?from=" + state.from + "&to=" + state.to);
       if (!res.ok) throw new Error("network");
       const data = await res.json();
       const newRate = data.rates[state.to];
