@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Currency — Live Rates</title>
+<meta name="description" content="Convert currencies with live exchange rates." />
+
+<!-- iOS PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Currency" />
+<link rel="apple-touch-icon" href="/icons/icon-180.png" />
+
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#3D0F08" />
+
+<link rel="icon" href="/icons/icon-192.png" />
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@200;300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    font-family: 'Sora', sans-serif;
+    overflow-x: hidden;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    position: relative;
+    overflow: hidden;
+  }
+
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+  .bg-scene {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(165deg, #3D0F08 0%, #6B2614 26%, #9C4322 50%, #C9874F 74%, #F3D9B1 100%);
+    z-index: -3;
+  }
+  .bg-vignette {
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 18% 12%, rgba(255,210,160,0.25) 0%, rgba(0,0,0,0) 45%),
+      radial-gradient(ellipse at 50% 110%, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 55%);
+    z-index: -2;
+  }
+  .bg-wordmark {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .bg-wordmark span {
+    font-family: 'Sora', sans-serif;
+    font-weight: 800;
+    font-size: 38vw;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: rgba(255,255,255,0.05);
+    white-space: nowrap;
+    transform: translateY(8%);
+  }
+
+  .app {
+    width: 100%;
+    max-width: 420px;
+    position: relative;
+    z-index: 10;
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+  }
+  .glass-light {
+    background: linear-gradient(135deg, rgba(255,255,255,0.18), rgba(255,200,150,0.06));
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+  }
+  .glass-dark {
+    background: linear-gradient(135deg, rgba(45,12,5,0.6), rgba(20,5,2,0.4));
+    border: 1px solid rgba(255, 180, 130, 0.16);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+  }
+
+  .top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding: 0 4px;
+  }
+  .top-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    color: rgba(255,255,255,0.45);
+  }
+  .refresh-btn {
+    width: 36px; height: 36px;
+    border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .refresh-btn:active { transform: scale(0.9); }
+  .refresh-btn svg {
+    color: #F3D9B1;
+    transition: transform 0.6s ease;
+  }
+  .refresh-btn.spinning svg {
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  h1 {
+    font-size: 36px;
+    font-weight: 300;
+    color: white;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin: 0 0 4px 0;
+  }
+  h1 strong { font-weight: 600; }
+
+  .rate-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0 24px;
+  }
+  .trend-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    box-shadow: 0 0 10px currentColor;
+    flex-shrink: 0;
+  }
+  .rate-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .field {
+    border-radius: 24px;
+    padding: 20px;
+    position: relative;
+  }
+  .field-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .field-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: rgba(255,255,255,0.55);
+  }
+  .currency-select-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .flag { font-size: 16px; }
+  select {
+    background: transparent;
+    border: none;
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: 'Sora', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+  }
+  select option { color: #3D0F08; }
+
+  .amount-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-family: 'Sora', sans-serif;
+    font-size: 48px;
+    font-weight: 300;
+    color: white;
+    outline: none;
+    padding: 0;
+  }
+  .amount-input::placeholder { color: rgba(255,255,255,0.3); }
+
+  .result-value {
+    font-size: 48px;
+    font-weight: 300;
+    color: white;
+    text-shadow: 0 0 36px rgba(232,167,102,0.4);
+    min-height: 58px;
+    word-break: break-all;
+  }
+
+  .swap-wrap {
+    display: flex;
+    justify-content: center;
+    margin: -16px 0;
+    position: relative;
+    z-index: 10;
+  }
+  .swap-btn {
+    width: 48px; height: 48px;
+    border-radius: 16px;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    background: linear-gradient(135deg, #FFE9CF, #E8A766);
+    box-shadow: 0 8px 24px rgba(122,36,16,0.4), inset 0 1px 0 rgba(255,255,255,0.6);
+    transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .swap-btn.active { transform: rotate(180deg); }
+  .swap-btn svg { color: #3D0F08; }
+
+  .status-text {
+    font-size: 10px;
+    margin: 16px 4px 0;
+    color: rgba(255,255,255,0.3);
+  }
+  .status-text.error { color: #FF9E9E; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .refresh-btn.spinning svg { animation: none; }
+    .swap-btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="bg-scene"></div>
+  <div class="bg-vignette"></div>
+  <div class="bg-wordmark" aria-hidden="true"><span id="wordmark">USD/EUR</span></div>
+
+  <div class="app">
+    <div class="top-row">
+      <p class="top-label font-mono">Live Exchange Rate</p>
+      <button class="refresh-btn glass" id="refreshBtn" aria-label="Refresh rate">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+      </button>
+    </div>
+
+    <h1>Currency<br/><strong>converted live</strong></h1>
+    <div class="rate-row">
+      <span class="trend-dot" id="trendDot" style="color:#B6FFCB;background:#B6FFCB;"></span>
+      <p class="rate-text font-mono" id="rateText">Loading rate…</p>
+    </div>
+
+    <div class="field glass-light">
+      <div class="field-row">
+        <span class="field-label font-mono">You send</span>
+        <div class="currency-select-wrap">
+          <span class="flag" id="fromFlag">🇺🇸</span>
+          <select id="fromSelect" aria-label="From currency"></select>
+        </div>
+      </div>
+      <input class="amount-input" id="amountInput" inputmode="decimal" placeholder="0" value="100" aria-label="Amount to convert" />
+    </div>
+
+    <div class="swap-wrap">
+      <button class="swap-btn" id="swapBtn" aria-label="Swap currencies">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+      </button>
+    </div>
+
+    <div class="field glass-dark">
+      <div class="field-row">
+        <span class="field-label font-mono">You get</span>
+        <div class="currency-select-wrap">
+          <span class="flag" id="toFlag">🇪🇺</span>
+          <select id="toSelect" aria-label="To currency"></select>
+        </div>
+      </div>
+      <div class="result-value" id="resultValue">—</div>
+    </div>
+
+    <p class="status-text font-mono" id="statusText">—</p>
+  </div>
+
+<script>
+  const CURRENCIES = [
+    { code: "USD", name: "US Dollar", flag: "🇺🇸" },
+    { code: "EUR", name: "Euro", flag: "🇪🇺" },
+    { code: "RUB", name: "Russian Ruble", flag: "🇷🇺" },
+    { code: "GBP", name: "British Pound", flag: "🇬🇧" },
+    { code: "JPY", name: "Japanese Yen", flag: "🇯🇵" },
+    { code: "CNY", name: "Chinese Yuan", flag: "🇨🇳" },
+    { code: "CHF", name: "Swiss Franc", flag: "🇨🇭" },
+    { code: "KZT", name: "Kazakhstani Tenge", flag: "🇰🇿" },
+    { code: "TRY", name: "Turkish Lira", flag: "🇹🇷" },
+    { code: "AED", name: "UAE Dirham", flag: "🇦🇪" },
+  ];
+
+  const STORAGE_KEY = "currency_converter_state_v1";
+  const RATE_CACHE_PREFIX = "rate_cache_";
+
+  let state = {
+    from: "USD",
+    to: "EUR",
+    amount: "100",
+    rate: null,
+    prevRate: null,
+    updatedAt: null,
+  };
+
+  // Restore persisted state
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    if (saved.from) state.from = saved.from;
+    if (saved.to) state.to = saved.to;
+    if (saved.amount) state.amount = saved.amount;
+  } catch (e) {}
+
+  const fromSelect = document.getElementById("fromSelect");
+  const toSelect = document.getElementById("toSelect");
+  const fromFlag = document.getElementById("fromFlag");
+  const toFlag = document.getElementById("toFlag");
+  const amountInput = document.getElementById("amountInput");
+  const resultValue = document.getElementById("resultValue");
+  const rateText = document.getElementById("rateText");
+  const trendDot = document.getElementById("trendDot");
+  const statusText = document.getElementById("statusText");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const swapBtn = document.getElementById("swapBtn");
+  const wordmark = document.getElementById("wordmark");
+
+  function populateSelects() {
+    CURRENCIES.forEach(c => {
+      const opt1 = document.createElement("option");
+      opt1.value = c.code; opt1.textContent = c.code;
+      fromSelect.appendChild(opt1);
+
+      const opt2 = document.createElement("option");
+      opt2.value = c.code; opt2.textContent = c.code;
+      toSelect.appendChild(opt2);
+    });
+    fromSelect.value = state.from;
+    toSelect.value = state.to;
+  }
+
+  function flagFor(code) {
+    return (CURRENCIES.find(c => c.code === code) || {}).flag || "🏳️";
+  }
+
+  function formatNumber(n) {
+    if (n == null || isNaN(n)) return "—";
+    return n.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  }
+
+  function persist() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      from: state.from, to: state.to, amount: state.amount
+    }));
+  }
+
+  function cacheKey(from, to) {
+    return RATE_CACHE_PREFIX + from + "_" + to;
+  }
+
+  function render() {
+    fromFlag.textContent = flagFor(state.from);
+    toFlag.textContent = flagFor(state.to);
+    wordmark.textContent = state.from + "/" + state.to;
+
+    const numericAmount = parseFloat((state.amount || "0").replace(",", ".")) || 0;
+    const converted = state.rate != null ? numericAmount * state.rate : null;
+    resultValue.textContent = formatNumber(converted);
+
+    if (state.rate != null) {
+      rateText.textContent = "1 " + state.from + " = " + state.rate.toFixed(4) + " " + state.to;
+    } else {
+      rateText.textContent = "Loading rate…";
+    }
+
+    let trend = "flat";
+    if (state.rate != null && state.prevRate != null) {
+      if (state.rate > state.prevRate) trend = "up";
+      else if (state.rate < state.prevRate) trend = "down";
+    }
+    const color = trend === "down" ? "#FF8A65" : "#B6FFCB";
+    trendDot.style.color = color;
+    trendDot.style.background = color;
+  }
+
+  async function fetchRate(showSpinner) {
+    if (showSpinner) refreshBtn.classList.add("spinning");
+    statusText.classList.remove("error");
+    try {
+      const res = await fetch("https://api.frankfurter.app/latest?from=" + state.from + "&to=" + state.to);
+      if (!res.ok) throw new Error("network");
+      const data = await res.json();
+      const newRate = data.rates[state.to];
+
+      const ck = cacheKey(state.from, state.to);
+      const cachedRaw = localStorage.getItem(ck);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        state.prevRate = cached.rate;
+      }
+      state.rate = newRate;
+      state.updatedAt = data.date;
+      localStorage.setItem(ck, JSON.stringify({ rate: newRate, date: data.date }));
+
+      statusText.textContent = "Updated " + new Date(data.date).toLocaleDateString("en-US");
+    } catch (e) {
+      const ck = cacheKey(state.from, state.to);
+      const cachedRaw = localStorage.getItem(ck);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        state.rate = cached.rate;
+        statusText.textContent = "Rate not refreshed — showing last cached value";
+        statusText.classList.add("error");
+      } else {
+        statusText.textContent = "Couldn't reach the rates server";
+        statusText.classList.add("error");
+      }
+    } finally {
+      refreshBtn.classList.remove("spinning");
+      render();
+    }
+  }
+
+  // Try to load cached rate immediately so UI isn't empty offline
+  function loadCachedRate() {
+    const ck = cacheKey(state.from, state.to);
+    const cachedRaw = localStorage.getItem(ck);
+    if (cachedRaw) {
+      const cached = JSON.parse(cachedRaw);
+      state.rate = cached.rate;
+      state.updatedAt = cached.date;
+    }
+  }
+
+  populateSelects();
+  amountInput.value = state.amount;
+  loadCachedRate();
+  render();
+  fetchRate(false);
+
+  let pollInterval = setInterval(() => fetchRate(false), 60000);
+
+  fromSelect.addEventListener("change", () => {
+    state.from = fromSelect.value;
+    state.rate = null; state.prevRate = null;
+    persist();
+    loadCachedRate();
+    render();
+    fetchRate(true);
+  });
+
+  toSelect.addEventListener("change", () => {
+    state.to = toSelect.value;
+    state.rate = null; state.prevRate = null;
+    persist();
+    loadCachedRate();
+    render();
+    fetchRate(true);
+  });
+
+  amountInput.addEventListener("input", () => {
+    const v = amountInput.value;
+    if (/^[0-9]*[.,]?[0-9]*$/.test(v)) {
+      state.amount = v;
+      persist();
+      render();
+    } else {
+      amountInput.value = state.amount;
+    }
+  });
+
+  refreshBtn.addEventListener("click", () => fetchRate(true));
+
+  swapBtn.addEventListener("click", () => {
+    swapBtn.classList.add("active");
+    setTimeout(() => swapBtn.classList.remove("active"), 400);
+
+    const oldFrom = state.from;
+    state.from = state.to;
+    state.to = oldFrom;
+    fromSelect.value = state.from;
+    toSelect.value = state.to;
+    state.rate = null; state.prevRate = null;
+    persist();
+    loadCachedRate();
+    render();
+    fetchRate(true);
+  });
+
+  // Refresh when app regains focus (coming back from background on iOS)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      fetchRate(false);
+    }
+  });
+
+  // Register service worker for offline support
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
